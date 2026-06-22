@@ -37881,7 +37881,20 @@ function runLint({ executable, args, cwd }) {
       reject(err);
     });
 
-    child.on("close", (code) => resolve({ code: code ?? 0, stdout, stderr }));
+    child.on("close", (code, signal) => {
+      if (signal) {
+        // The process was killed (e.g. OOM, timeout) rather than exiting on
+        // its own. It never produced a complete lint result, so surface this
+        // as a failure instead of silently treating it as success.
+        reject(
+          new Error(
+            `swift-format was terminated by signal ${signal} before completing.`,
+          ),
+        );
+        return;
+      }
+      resolve({ code: code ?? 0, stdout, stderr });
+    });
   });
 }
 

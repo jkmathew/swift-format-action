@@ -44,7 +44,7 @@ A full example lives in [`examples/swift-format.yml`](examples/swift-format.yml)
 | Input | Default | Description |
 | --- | --- | --- |
 | `token` | `${{ github.token }}` | Token used to post review comments. |
-| `swift-format-command` | `swift-format` | Executable to invoke. Use `swift format` for the toolchain subcommand. |
+| `swift-format-command` | `swift format` | Executable to invoke. Omit the input for the toolchain subcommand. |
 | `paths` | `.` | Newline/space-separated files or directories to lint. |
 | `configuration` | _(empty)_ | Path to a `.swift-format` config file. |
 | `recursive` | `true` | Recurse into directories. |
