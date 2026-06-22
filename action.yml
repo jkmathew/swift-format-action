@@ -1,0 +1,44 @@
+name: "Swift Format Lint"
+description: "Runs Apple's swift-format in lint mode and reports violations as inline pull request review comments."
+author: "Johnykutty Mathew"
+branding:
+  icon: "check-circle"
+  color: "orange"
+
+inputs:
+  token:
+    description: "GitHub token used to post review comments. Defaults to the workflow token."
+    required: false
+    default: ${{ github.token }}
+  swift-format-command:
+    description: "The swift-format executable to invoke. Use 'swift-format' for the standalone binary or 'swift format' for the toolchain subcommand."
+    required: false
+    default: "swift-format"
+  paths:
+    description: "Newline- or space-separated list of files/directories to lint. Defaults to the current directory."
+    required: false
+    default: "."
+  configuration:
+    description: "Path to a .swift-format configuration file. If omitted, swift-format searches upward from each linted file."
+    required: false
+    default: ""
+  recursive:
+    description: "Recurse into directories listed in `paths`."
+    required: false
+    default: "true"
+  strict:
+    description: "Treat all lint findings as errors inside swift-format (passes --strict)."
+    required: false
+    default: "false"
+  fail-on-violations:
+    description: "Fail the action (non-zero exit) when any violation is found."
+    required: false
+    default: "true"
+
+outputs:
+  violation-count:
+    description: "Total number of violations reported by swift-format."
+
+runs:
+  using: "node20"
+  main: "dist/index.js"
