@@ -73,6 +73,15 @@ async function run() {
       }
     } catch (err) {
       core.warning(`Failed to post review comments: ${err.message}`);
+      if (err.status === 403 || /not accessible by integration/i.test(err.message)) {
+        core.warning(
+          "The token lacks permission to post pull request reviews. Add " +
+            "`permissions: { pull-requests: write }` to the workflow. Note that " +
+            "pull requests opened from forks always receive a read-only token on " +
+            "`pull_request` events — use `pull_request_target` (with care) or run " +
+            "the lint job on the base repo to comment on those.",
+        );
+      }
     }
   } else if (context.eventName === "pull_request" && !token) {
     core.warning("No token provided; skipping inline review comments.");

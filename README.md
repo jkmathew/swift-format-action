@@ -68,6 +68,31 @@ blocks a pull request on its own.
   with the Swift toolchain (`swift format`); on Linux, install `swift-format`
   separately and set `swift-format-command` accordingly.
 
+## Troubleshooting
+
+### `Failed to post review comments: Resource not accessible by integration`
+
+The `GITHUB_TOKEN` doesn't have permission to post pull request reviews. Two
+things to check:
+
+1. **Grant the permission.** The default token is read-only for PR resources.
+   Add this to the workflow (or job):
+
+   ```yaml
+   permissions:
+     contents: read
+     pull-requests: write
+   ```
+
+2. **Fork pull requests.** On the `pull_request` event, PRs opened from forks
+   always receive a read-only token — the `permissions:` block above cannot
+   override this. Options:
+   - Use [`pull_request_target`](https://docs.github.com/actions/using-workflows/events-that-trigger-workflows#pull_request_target)
+     instead (understand the security implications — it runs with the base
+     repo's secrets), or
+   - Keep `pull_request` and accept that fork PRs only get inline annotations
+     (still visible on the "Files changed" tab) rather than review comments.
+
 ## Development
 
 ```bash
