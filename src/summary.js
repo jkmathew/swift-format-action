@@ -21,10 +21,20 @@ async function findSummaryComment(octokit, { owner, repo, pull_number }) {
 }
 
 /**
+ * Build a GitHub permalink to a specific line of a file at the PR head commit.
+ * Honours GITHUB_SERVER_URL so it works on GitHub Enterprise too.
+ */
+function permalink({ serverUrl, owner, repo, commit_id }, path, line) {
+  if (!commit_id) return null;
+  const encoded = path.split("/").map(encodeURIComponent).join("/");
+  return `${serverUrl}/${owner}/${repo}/blob/${commit_id}/${encoded}#L${line}`;
+}
+
+/**
  * Render the markdown body for the summary comment from the violations that
  * could not be posted as inline comments.
  */
-function renderBody(skipped) {
+function renderBody(skipped, context) {
   const byFile = new Map();
   for (const v of skipped) {
     if (!byFile.has(v.path)) byFile.set(v.path, []);
@@ -45,7 +55,11 @@ function renderBody(skipped) {
     lines.push(`<details><summary><code>${path}</code> (${items.length})</summary>`, "");
     for (const v of items) {
       const emoji = SEVERITY_EMOJI[v.severity] ?? "";
-      lines.push(`- ${emoji} \`L${v.line}:${v.column}\` ${v.message}`);
+      const url = permalink(context, v.path, v.line);
+      const location = url
+        ? `[\`L${v.line}:${v.column}\`](${url})`
+        : `\`L${v.line}:${v.column}\``;
+      lines.push(`- ${emoji} ${location} ${v.message}`);
     }
     lines.push("", "</details>", "");
   }
@@ -64,6 +78,7 @@ function renderBody(skipped) {
  */
 export async function upsertSummaryComment(octokit, context, skipped) {
   const { owner, repo, pull_number } = context;
+  const serverUrl = process.env.GITHUB_SERVER_URL || "https://github.com";
   const existing = await findSummaryComment(octokit, { owner, repo, pull_number });
 
   if (skipped.length === 0) {
@@ -78,7 +93,7 @@ export async function upsertSummaryComment(octokit, context, skipped) {
     return "noop";
   }
 
-  const body = renderBody(skipped);
+  const body = renderBody(skipped, { ...context, serverUrl });
 
   if (existing) {
     if (existing.body === body) return "noop";
