@@ -4,6 +4,7 @@ import { Octokit } from "octokit";
 import { loadContext } from "./context.js";
 import { buildLintCommand, runLint, parseViolations } from "./swiftFormat.js";
 import { postReview } from "./review.js";
+import { upsertSummaryComment } from "./summary.js";
 
 function getList(name) {
   return core
@@ -64,12 +65,24 @@ async function run() {
     try {
       const octokit = new Octokit({ auth: token });
       const review = await postReview(octokit, context, violations);
-      core.info(
-        `Posted ${review.posted} inline comment(s); ` +
-          `${review.skipped.length} violation(s) outside the diff.`,
+
+      const notInPr = review.skipped.filter((v) => v.reason === "file-not-in-pr");
+      const notOnLine = review.skipped.filter(
+        (v) => v.reason === "line-not-in-diff",
       );
+      core.info(
+        `Posted ${review.posted} inline comment(s). ${review.skipped.length} ` +
+          `outside the diff (${notInPr.length} in unchanged files, ` +
+          `${notOnLine.length} on unchanged lines).`,
+      );
+
+      // Everything that can't be an inline comment goes into one sticky summary
+      // comment that is updated in place on each run (never duplicated).
+      const summary = await upsertSummaryComment(octokit, context, review.skipped);
+      core.info(`Summary comment: ${summary}.`);
+
       for (const v of review.skipped) {
-        core.info(`(outside diff) ${v.path}:${v.line}:${v.column}: ${v.message}`);
+        core.info(`(${v.reason}) ${v.path}:${v.line}:${v.column}: ${v.message}`);
       }
     } catch (err) {
       core.warning(`Failed to post review comments: ${err.message}`);

@@ -38057,8 +38057,15 @@ async function postReview(octokit, context, violations) {
 
   for (const violation of violations) {
     const lines = commentable.get(violation.path);
-    if (!lines || !lines.has(violation.line)) {
-      skipped.push(violation);
+    if (!lines) {
+      // The violation's file isn't part of this pull request at all.
+      skipped.push({ ...violation, reason: "file-not-in-pr" });
+      continue;
+    }
+    if (!lines.has(violation.line)) {
+      // The file changed, but not on this line — GitHub won't accept an inline
+      // comment here.
+      skipped.push({ ...violation, reason: "line-not-in-diff" });
       continue;
     }
 
@@ -38110,7 +38117,111 @@ function summaryBody(total, skippedCount) {
   return body;
 }
 
+;// CONCATENATED MODULE: ./src/summary.js
+// A hidden marker that lets us find and update the same comment on every run
+// instead of posting a new one each time.
+const MARKER = "<!-- swift-format-action:summary -->";
+
+const summary_SEVERITY_EMOJI = {
+  error: "🛑",
+  warning: "⚠️",
+};
+
+/**
+ * Find the action's existing sticky summary comment on the pull request, if any.
+ */
+async function findSummaryComment(octokit, { owner, repo, pull_number }) {
+  const comments = await octokit.paginate(octokit.rest.issues.listComments, {
+    owner,
+    repo,
+    issue_number: pull_number,
+    per_page: 100,
+  });
+  return comments.find((c) => c.body?.includes(MARKER)) ?? null;
+}
+
+/**
+ * Render the markdown body for the summary comment from the violations that
+ * could not be posted as inline comments.
+ */
+function renderBody(skipped) {
+  const byFile = new Map();
+  for (const v of skipped) {
+    if (!byFile.has(v.path)) byFile.set(v.path, []);
+    byFile.get(v.path).push(v);
+  }
+
+  const lines = [
+    MARKER,
+    "## swift-format",
+    "",
+    `${skipped.length} violation${skipped.length === 1 ? "" : "s"} could not be ` +
+      `shown as inline comments because they fall outside this pull request's changes:`,
+    "",
+  ];
+
+  for (const [path, items] of [...byFile.entries()].sort()) {
+    items.sort((a, b) => a.line - b.line || a.column - b.column);
+    lines.push(`<details><summary><code>${path}</code> (${items.length})</summary>`, "");
+    for (const v of items) {
+      const emoji = summary_SEVERITY_EMOJI[v.severity] ?? "";
+      lines.push(`- ${emoji} \`L${v.line}:${v.column}\` ${v.message}`);
+    }
+    lines.push("", "</details>", "");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Create, update, or delete the sticky summary comment so that exactly one
+ * comment exists per pull request and it always reflects the latest run.
+ *
+ * - violations outside the diff  -> create or update the comment
+ * - none left                    -> delete a stale comment if present
+ *
+ * @returns {Promise<"created" | "updated" | "deleted" | "noop">}
+ */
+async function upsertSummaryComment(octokit, context, skipped) {
+  const { owner, repo, pull_number } = context;
+  const existing = await findSummaryComment(octokit, { owner, repo, pull_number });
+
+  if (skipped.length === 0) {
+    if (existing) {
+      await octokit.rest.issues.deleteComment({
+        owner,
+        repo,
+        comment_id: existing.id,
+      });
+      return "deleted";
+    }
+    return "noop";
+  }
+
+  const body = renderBody(skipped);
+
+  if (existing) {
+    if (existing.body === body) return "noop";
+    await octokit.rest.issues.updateComment({
+      owner,
+      repo,
+      comment_id: existing.id,
+      body,
+    });
+    return "updated";
+  }
+
+  await octokit.rest.issues.createComment({
+    owner,
+    repo,
+    issue_number: pull_number,
+    body,
+  });
+  return "created";
+}
+
 ;// CONCATENATED MODULE: ./src/index.js
+
 
 
 
@@ -38176,12 +38287,24 @@ async function run() {
     try {
       const octokit = new Octokit({ auth: token });
       const review = await postReview(octokit, context, violations);
-      core.info(
-        `Posted ${review.posted} inline comment(s); ` +
-          `${review.skipped.length} violation(s) outside the diff.`,
+
+      const notInPr = review.skipped.filter((v) => v.reason === "file-not-in-pr");
+      const notOnLine = review.skipped.filter(
+        (v) => v.reason === "line-not-in-diff",
       );
+      core.info(
+        `Posted ${review.posted} inline comment(s). ${review.skipped.length} ` +
+          `outside the diff (${notInPr.length} in unchanged files, ` +
+          `${notOnLine.length} on unchanged lines).`,
+      );
+
+      // Everything that can't be an inline comment goes into one sticky summary
+      // comment that is updated in place on each run (never duplicated).
+      const summary = await upsertSummaryComment(octokit, context, review.skipped);
+      core.info(`Summary comment: ${summary}.`);
+
       for (const v of review.skipped) {
-        core.info(`(outside diff) ${v.path}:${v.line}:${v.column}: ${v.message}`);
+        core.info(`(${v.reason}) ${v.path}:${v.line}:${v.column}: ${v.message}`);
       }
     } catch (err) {
       core.warning(`Failed to post review comments: ${err.message}`);

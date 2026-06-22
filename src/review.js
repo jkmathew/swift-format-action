@@ -60,8 +60,15 @@ export async function postReview(octokit, context, violations) {
 
   for (const violation of violations) {
     const lines = commentable.get(violation.path);
-    if (!lines || !lines.has(violation.line)) {
-      skipped.push(violation);
+    if (!lines) {
+      // The violation's file isn't part of this pull request at all.
+      skipped.push({ ...violation, reason: "file-not-in-pr" });
+      continue;
+    }
+    if (!lines.has(violation.line)) {
+      // The file changed, but not on this line — GitHub won't accept an inline
+      // comment here.
+      skipped.push({ ...violation, reason: "line-not-in-diff" });
       continue;
     }
 

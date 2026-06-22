@@ -9,9 +9,16 @@ comment**. It is a JavaScript action (Node 20) and talks to the GitHub API with
 
 1. Runs `swift-format lint` over the paths you specify.
 2. Parses the diagnostics it emits.
-3. Posts violations that fall on changed lines as inline review comments.
-4. Emits workflow annotations for every violation (visible even on `push`).
-5. Optionally fails the job when violations are found.
+3. Posts violations that fall on **changed lines** as inline review comments.
+4. Collects every other violation (in files/lines not part of the diff) into a
+   single **sticky summary comment** that is updated in place on each run — it
+   is never duplicated.
+5. Emits workflow annotations for every violation (visible even on `push`).
+6. Optionally fails the job when violations are found.
+
+Re-running the action on the same PR will not pile up duplicate comments:
+inline comments are de-duplicated, and the summary comment is edited in place
+(and removed automatically once there are no remaining off-diff violations).
 
 ## Usage
 
