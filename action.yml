@@ -13,7 +13,7 @@ inputs:
   swift-format-command:
     description: "The swift-format executable to invoke. Use 'swift-format' for the standalone binary or 'swift format' for the toolchain subcommand."
     required: false
-    default: "swift-format"
+    default: "swift format"
   paths:
     description: "Newline- or space-separated list of files/directories to lint. Defaults to the current directory."
     required: false
