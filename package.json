@@ -1,0 +1,25 @@
+{
+  "name": "swift-format-action",
+  "version": "1.0.0",
+  "description": "Run Apple's swift-format and report lint violations as inline PR review comments.",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "ncc build src/index.js -o dist --source-map",
+    "test": "node --test"
+  },
+  "keywords": [
+    "github-action",
+    "swift",
+    "swift-format",
+    "lint"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "octokit": "^4.1.2"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.3"
+  }
+}

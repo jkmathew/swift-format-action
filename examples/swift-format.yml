@@ -1,0 +1,26 @@
+# Example consumer workflow. Drop this into .github/workflows/ in a Swift repo.
+name: Swift Format
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write # required to post inline review comments
+
+jobs:
+  lint:
+    runs-on: macos-14 # ships with a Swift toolchain that includes swift-format
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run swift-format
+        uses: jkmathew/swift-format-action@v1
+        with:
+          # Use the toolchain subcommand on the macOS runner image.
+          swift-format-command: "swift format"
+          paths: |
+            Sources
+            Tests
+          configuration: .swift-format
+          fail-on-violations: "true"
