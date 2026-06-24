@@ -1,4 +1,4 @@
-name: "Swift Format Lint"
+name: "Swift Format Action"
 description: "Runs Apple's swift-format in lint mode and reports violations as inline pull request review comments."
 author: "Johnykutty Mathew"
 branding:
